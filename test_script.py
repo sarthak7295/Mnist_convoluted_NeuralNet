@@ -1,8 +1,9 @@
 import tensorflow as tf
-import numpy as np
-import matplotlib.pyplot as plt
+# import numpy as np
+# import matplotlib.pyplot as plt
 import time
 from tensorflow.examples.tutorials.mnist import input_data
+
 data = input_data.read_data_sets('data/MNIST/', one_hot=True)
 print("Size of:")
 print("- Training-set:\t\t{}".format(len(data.train.labels)))
@@ -16,7 +17,6 @@ x_image = tf.reshape(x, [-1, 28, 28, 1])
 # Placeholder variable for the true labels associated with the images
 y_true = tf.placeholder(tf.float32, shape=[None, 10], name='y_true')
 y_true_cls = tf.argmax(y_true, dimension=1)
-
 
 def new_conv_layer(input, num_input_channels, filter_size, num_filters, name):
     with tf.variable_scope(name) as scope:
@@ -133,47 +133,53 @@ merged_summary = tf.summary.merge_all()
 
 num_epochs = 100
 batch_size = 100
+# config = tf.ConfigProto()
+# config.gpu_options.allow_growth = True
+# sess = tf.Session(config=config)
+sess = tf.Session()
+# Initialize all variables
+sess.run(tf.global_variables_initializer())
+saver = tf.train.Saver()
+model_path = 'D:\PycharmProjects\TensorFlow_Models\covoluted_nmist\covoluted_nmist_model'
+# Add the model graph to TensorBoard
+writer.add_graph(sess.graph)
 
-with tf.Session() as sess:
-    # Initialize all variables
-    sess.run(tf.global_variables_initializer())
+# Loop over number of epochs
+for epoch in range(num_epochs):
 
-    # Add the model graph to TensorBoard
-    writer.add_graph(sess.graph)
+    start_time = time.time()
+    train_accuracy = 0
 
-    # Loop over number of epochs
-    for epoch in range(num_epochs):
+    for batch in range(0, int(len(data.train.labels) / batch_size)):
+        # Get a batch of images and labels
+        x_batch, y_true_batch = data.train.next_batch(batch_size)
 
-        start_time = time.time()
-        train_accuracy = 0
+        # Put the batch into a dict with the proper names for placeholder variables
+        feed_dict_train = {x: x_batch, y_true: y_true_batch}
 
-        for batch in range(0, int(len(data.train.labels) / batch_size)):
-            # Get a batch of images and labels
-            x_batch, y_true_batch = data.train.next_batch(batch_size)
+        # Run the optimizer using this batch of training data.
+        sess.run(optimizer, feed_dict=feed_dict_train)
 
-            # Put the batch into a dict with the proper names for placeholder variables
-            feed_dict_train = {x: x_batch, y_true: y_true_batch}
+        # Calculate the accuracy on the batch of training data
+        train_accuracy += sess.run(accuracy, feed_dict=feed_dict_train)
 
-            # Run the optimizer using this batch of training data.
-            sess.run(optimizer, feed_dict=feed_dict_train)
+        # Generate summary with the current batch of data and write to file
+        summ = sess.run(merged_summary, feed_dict=feed_dict_train)
+        writer.add_summary(summ, epoch * int(len(data.train.labels) / batch_size) + batch)
 
-            # Calculate the accuracy on the batch of training data
-            train_accuracy += sess.run(accuracy, feed_dict=feed_dict_train)
+    train_accuracy /= int(len(data.train.labels) / batch_size)
 
-            # Generate summary with the current batch of data and write to file
-            summ = sess.run(merged_summary, feed_dict=feed_dict_train)
-            writer.add_summary(summ, epoch * int(len(data.train.labels) / batch_size) + batch)
+    # Generate summary and validate the model on the entire validation set
+    summ, vali_accuracy = sess.run([merged_summary, accuracy],
+                                   feed_dict={x: data.validation.images, y_true: data.validation.labels})
+    writer1.add_summary(summ, epoch)
 
-        train_accuracy /= int(len(data.train.labels) / batch_size)
+    end_time = time.time()
 
-        # Generate summary and validate the model on the entire validation set
-        summ, vali_accuracy = sess.run([merged_summary, accuracy],
-                                       feed_dict={x: data.validation.images, y_true: data.validation.labels})
-        writer1.add_summary(summ, epoch)
+    print("Epoch " + str(epoch + 1) + " completed : Time usage " + str(int(end_time - start_time)) + " seconds")
+    print("\tAccuracy:")
+    print("\t- Training Accuracy:\t{}".format(train_accuracy))
+    print("\t- Validation Accuracy:\t{}".format(vali_accuracy))
 
-        end_time = time.time()
-
-        print("Epoch " + str(epoch + 1) + " completed : Time usage " + str(int(end_time - start_time)) + " seconds")
-        print("\tAccuracy:")
-        print("\t- Training Accuracy:\t{}".format(train_accuracy))
-        print("\t- Validation Accuracy:\t{}".format(vali_accuracy))
+save_path = saver.save(sess, model_path)
+print('model saved in ', save_path)
